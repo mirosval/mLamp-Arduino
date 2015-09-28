@@ -37,9 +37,19 @@ the application.
 
 #include <RFduinoBLE.h>
 
+//#define DEBUG
+
+#ifdef DEBUG
+  #define DEBUG_PRINTLN(x) Serial.println(x)
+  #define DEBUG_PRINT(x) Serial.print(x)
+#else
+  #define DEBUG_PRINTLN(x)
+  #define DEBUG_PRINT(x)
+#endif
+
 // Lamp Modes
-const byte MODE_RESET = 0 << 0;
-const byte MODE_HOLD = 1 << 0;
+const byte MODE_RESET = 0 << 0; // resets the lamp to 0, 0, 0 after the client disconnects
+const byte MODE_HOLD = 1 << 0; // will leave the lamp on with the last color set
 
 // pin 3 on the RGB shield is the red led
 // (can be turned on/off from the iPhone app)
@@ -47,21 +57,24 @@ int led_r = 3;
 int led_g = 4;
 int led_b = 2;
 
+// these hold the current color
+uint8_t color_r = 0;
+uint8_t color_g = 0;
+uint8_t color_b = 0;
+
+// mode is either:
+// 0 - resets
+// 1 - holds
+// See MODE_RESET and MODE_HOLD
 byte mode = 0;
 
-// pin 5 on the RGB shield is button 1
-// (button press will be shown on the iPhone app)
-//int button = 5;
-
-// debounce time (in ms)
-//int debounce_time = 10;
-
-// maximum debounce timeout (in ms)
-//int debounce_timeout = 100;
-
 void setup() {
+#ifdef DEBUG
   Serial.begin(9600);
-  Serial.println("RFduino Setup");
+#endif
+
+  DEBUG_PRINTLN("RFduino Setup");
+  
   // led turned on/off from the iPhone app
   pinMode(led_r, OUTPUT);
   pinMode(led_g, OUTPUT);
@@ -81,34 +94,41 @@ void setup() {
 }
 
 void loop() {
-
+  // I found that I get the best results when I set the color from the loop
+  delay(10);
+  
+  // set the color
+  analogWrite(led_r, color_r);
+  analogWrite(led_g, color_g);
+  analogWrite(led_b, color_b);
 }
 
 void RFduinoBLE_onConnect()
 {
-  Serial.println("Connecting"); 
+  DEBUG_PRINTLN("Connecting"); 
 }
 
 void RFduinoBLE_onDisconnect()
 {
-  Serial.println("Disconnecting");
-  Serial.print("Mode: ");
-  Serial.println(mode);
+  DEBUG_PRINTLN("Disconnecting");
+  DEBUG_PRINT("Mode: ");
+  DEBUG_PRINTLN(mode);
   
   if(mode & MODE_HOLD) {
-    Serial.println("Mode was set to MODE_HOLD, so will leave LEDs on");
+    DEBUG_PRINTLN("Mode was set to MODE_HOLD, so will leave LEDs on");
   } else {
     // MODE_RESET
-    Serial.println("Mode was set to MODE_RESET, so turning off LEDs");
+    DEBUG_PRINTLN("Mode was set to MODE_RESET, so turning off LEDs");
     // don't leave the led on if they disconnect
-    analogWrite(led_r, 0);
-    analogWrite(led_g, 0);
-    analogWrite(led_b, 0);
+    color_r = 0;
+    color_g = 0;
+    color_b = 0;
   }
 }
 
 void RFduinoBLE_onReceive(char *data, int len)
 {
+  DEBUG_PRINTLN("BLE onReceive called");
   if(len != 4) {
     return;
   }
@@ -120,9 +140,17 @@ void RFduinoBLE_onReceive(char *data, int len)
   byte r = data[1];
   byte g = data[2];
   byte b = data[3];
-  
-  // set the color
-  analogWrite(led_r, r);
-  analogWrite(led_g, g);
-  analogWrite(led_b, b);
+
+  DEBUG_PRINT("R: ");
+  DEBUG_PRINT(r);
+  DEBUG_PRINT(" G: ");
+  DEBUG_PRINT(g);
+  DEBUG_PRINT(" B: ");
+  DEBUG_PRINT(b);
+  DEBUG_PRINTLN("");
+
+  // set the current color to the color that we received
+  color_r = r;
+  color_g = g;
+  color_b = b;
 }
